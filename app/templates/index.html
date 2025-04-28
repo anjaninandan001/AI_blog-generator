@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Blog Generator</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>AI Blog Generator</h1>
+            <p>Generate high-quality blog posts with just a few clicks using locally-hosted AI</p>
+        </header>
+
+        <main>
+            <div class="input-section">
+                <form id="blog-form">
+                    <div class="form-group">
+                        <label for="topic">Blog Topic</label>
+                        <input type="text" id="topic" name="topic" placeholder="Enter a topic (e.g., 'The Future of Renewable Energy')" required>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="tone">Tone</label>
+                            <select id="tone" name="tone">
+                                <option value="informative">Informative</option>
+                                <option value="conversational">Conversational</option>
+                                <option value="professional">Professional</option>
+                                <option value="humorous">Humorous</option>
+                                <option value="persuasive">Persuasive</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="length">Approximate Length (words)</label>
+                            <select id="length" name="length">
+                                <option value="300">Short (~300 words)</option>
+                                <option value="500" selected>Medium (~500 words)</option>
+                                <option value="800">Long (~800 words)</option>
+                                <option value="1200">Very Long (~1200 words)</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <button type="submit" id="generate-btn">Generate Blog Post</button>
+                    </div>
+                </form>
+            </div>
+            
+            <div class="loading-spinner" id="loading-spinner">
+                <div class="spinner"></div>
+                <p>Generating your blog post...</p>
+                <p class="small">(This may take 15-30 seconds depending on your hardware)</p>
+            </div>
+            
+            <div class="output-section" id="output-section">
+                <div class="output-controls">
+                    <button id="copy-btn">Copy to Clipboard</button>
+                    <button id="download-btn">Download as Text</button>
+                    <button id="new-post-btn">Generate New Post</button>
+                </div>
+                <div class="output-content" id="output-content"></div>
+            </div>
+        </main>
+        
+        <footer>
+            <p>Powered by Ollama LLM | Created with Flask</p>
+            <p class="small">Using locally-hosted AI models - no API costs!</p>
+        </footer>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const blogForm = document.getElementById('blog-form');
+            const generateBtn = document.getElementById('generate-btn');
+            const loadingSpinner = document.getElementById('loading-spinner');
+            const outputSection = document.getElementById('output-section');
+            const outputContent = document.getElementById('output-content');
+            const copyBtn = document.getElementById('copy-btn');
+            const downloadBtn = document.getElementById('download-btn');
+            const newPostBtn = document.getElementById('new-post-btn');
+            
+            // Hide the loading spinner and output section initially
+            loadingSpinner.style.display = 'none';
+            outputSection.style.display = 'none';
+            
+            // Form submission handler
+            blogForm.addEventListener('submit', async function(event) {
+                event.preventDefault();
+                generateBlogPost();
+            });
+            
+            // Generate new post button handler
+            newPostBtn.addEventListener('click', function() {
+                outputSection.style.display = 'none';
+                blogForm.reset();
+                document.getElementById('topic').focus();
+            });
+            
+            async function generateBlogPost() {
+                // Get form values
+                const topic = document.getElementById('topic').value.trim();
+                const tone = document.getElementById('tone').value;
+                const length = document.getElementById('length').value;
+                
+                if (!topic) {
+                    alert('Please enter a topic for your blog post.');
+                    return;
+                }
+                
+                // Show loading spinner, hide output section
+                loadingSpinner.style.display = 'flex';
+                outputSection.style.display = 'none';
+                generateBtn.disabled = true;
+                
+                try {
+                    // Send API request
+                    const response = await fetch('/generate', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ topic, tone, length: parseInt(length) }),
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (response.ok) {
+                        // Format and display the generated blog post
+                        const formattedBlog = formatBlogPost(data.blog_post);
+                        outputContent.innerHTML = formattedBlog;
+                        
+                        // Show output section, hide loading spinner
+                        outputSection.style.display = 'block';
+                    } else {
+                        // Display error message
+                        alert(`Error: ${data.error || 'Failed to generate blog post'}`);
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    alert('An error occurred while generating the blog post. Please ensure Ollama is running locally.');
+                } finally {
+                    // Hide loading spinner, enable generate button
+                    loadingSpinner.style.display = 'none';
+                    generateBtn.disabled = false;
+                }
+            }
+            
+            // Format blog post with Markdown-like parsing
+            function formatBlogPost(text) {
+                // Basic Markdown-like formatting
+                let formatted = text
+                    // Format headings
+                    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+                    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+                    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+                    // Format paragraphs with double newlines
+                    .replace(/\n\n(.+)/g, '<p>$1</p>')
+                    // Format bold text
+                    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                    // Format italic text
+                    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+                    // Format lists
+                    .replace(/^- (.+)$/gm, '<li>$1</li>')
+                    // Wrap list items in ul
+                    .replace(/(<li>.+<\/li>\n)+/g, '<ul>$&</ul>');
+                
+                return formatted;
+            }
+            
+            // Copy to clipboard
+            copyBtn.addEventListener('click', function() {
+                const textToCopy = outputContent.textContent;
+                navigator.clipboard.writeText(textToCopy)
+                    .then(() => {
+                        alert('Blog post copied to clipboard!');
+                    })
+                    .catch(err => {
+                        console.error('Failed to copy: ', err);
+                        alert('Failed to copy text. Please try again.');
+                    });
+            });
+            
+            // Download as text file
+            downloadBtn.addEventListener('click', function() {
+                const text = outputContent.textContent;
+                const blob = new Blob([text], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'blog-post.txt';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            });
+        });
+    </script>
+</body>
+</html>
